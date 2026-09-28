@@ -14,7 +14,7 @@ public static class EnvironmentInfo
     #if NET10_0_OR_GREATER
     public const string BuildNote = "збірка під net10.0";
     #else
-    public const string BuildNote = "збірка під net8.0";
+    public const string BuildNote = "збірка під net9.0";
     #endif
     public static EnvironmentReport Collect() => new(
         RuntimeInformation.OSDescription,
