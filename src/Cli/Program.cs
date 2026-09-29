@@ -12,28 +12,26 @@ if (!File.Exists(path))
     return 1;
 }
 
-// Вибір імпортера за розширенням файлу через switch expression
-string extension = Path.GetExtension(path).ToLowerInvariant();
-ImportResult<ProductDto> result = extension switch
-{
-    ".csv" => ProductCsvImporter.Load(path),
-    ".json" => ProductJsonImporter.Load(path),
-    _ => throw new NotSupportedException($"Формат файлу '{extension}' не підтримується")
-};
+// Викликаємо імпортер (назва залишилась старою)
+MultiImportResult result = ProductCsvImporter.Load(path);
 
-Console.WriteLine($"Завантажено записів: {result.Items.Count}");
-Console.WriteLine(new string('-', 60));
-
-foreach (ProductDto p in result.Items.Take(5))
+Console.WriteLine($"Завантажено товарів: {result.Products.Count}");
+foreach (ProductDto p in result.Products)
 {
-    Console.WriteLine($" {p.Id,-10} {p.Name,-25} {p.Price,8:F2} {p.Note}");
+    Console.WriteLine($" [Товар] {p.Id,-10} {p.Name,-20} {p.Price,8:F2} {p.Note}");
+}
+
+Console.WriteLine($"\nЗавантажено складів: {result.Warehouses.Count}");
+foreach (WarehouseDto w in result.Warehouses)
+{
+    Console.WriteLine($" [Склад] {w.Id,-10} {w.Name,-20} {w.Location}");
 }
 
 Console.WriteLine(new string('-', 60));
 
 if (result.Errors.Count > 0)
 {
-    Console.WriteLine($"Пропущено рядків/об'єктів: {result.Errors.Count}");
+    Console.WriteLine($"Пропущено рядків: {result.Errors.Count}");
     foreach (string e in result.Errors)
     {
         Console.WriteLine($" ! {e}");
@@ -41,12 +39,11 @@ if (result.Errors.Count > 0)
     Console.WriteLine(new string('-', 60));
 }
 
-// ДОДАТКОВЕ ЗАВДАННЯ 3: Статистика імпорту
-int total = result.Items.Count + result.Errors.Count;
-int accepted = result.Items.Count;
-int skipped = result.Errors.Count;
-double errorRate = total > 0 ? (double)skipped / total * 100 : 0;
+// Статистика імпорту[cite: 1]
+int total = result.Products.Count + result.Warehouses.Count + result.Errors.Count;
+int accepted = result.Products.Count + result.Warehouses.Count;
+double errorRate = total > 0 ? (double)result.Errors.Count / total * 100 : 0;
 
-Console.WriteLine($"Статистика: усього {total} | прийнято {accepted} | пропущено {skipped} | помилок {errorRate:F1}%");
+Console.WriteLine($"Статистика: усього {total} | прийнято {accepted} | помилок {errorRate:F1}%");
 
 return 0;
