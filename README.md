@@ -16,6 +16,44 @@
 * Запуск за замовчуванням: `dotnet run --project src/Cli`[cite: 1, 3]
 * Базова публікація: `dotnet publish src/Cli -c Release -r win-x64`[cite: 1, 3]
 
+## Доменна модель (лабораторна 4)
+Каталог `src/Core/Domain` містить сутності з поведінкою; records із `Core/Dto` лишаються форматом даних (DTO).
+Домен не залежить від `Console`, `File` та проєкту `Cli`.
+
+* `Product` — товар із залишком: `Create`, `RegisterArrival`, `Issue`, `ChangePrice`, `ChangeStatus`, `ToDto` / `FromDto`.
+* `Warehouse` — склад: `Create`, `Relocate`, `ToDto` / `FromDto`.
+* `ProductStatus` — `Active`, `Suspended`, `Discontinued` (допустимі переходи перевіряє `switch`-вираз).
+* `WarehousePlacementService` — правило на дві сутності (склад + товар); у тижні 5 його викличе `CatalogService`.
+* `DomainConverter` (`Core/Import`) — перетворює результат імпорту на сутності й повертає перелік відхилених рядків.
+
+### Інваріанти
+Конструктори приватні, публічних `set` немає; створення — лише через фабричні методи, `FromDto` проходить ті самі перевірки.
+
+**Product**
+1. Id не порожній (`ArgumentException`, `Create`); зберігається у верхньому регістрі без пробілів по краях.
+2. Назва не порожня (`ArgumentException`, `Create`).
+3. Ціна не від'ємна (`ArgumentOutOfRangeException`, `Create`, `ChangePrice`).
+4. Початковий залишок не від'ємний (`ArgumentOutOfRangeException`, `Create`).
+5. Кількість приходу/видачі більша за нуль (`ArgumentOutOfRangeException`, `RegisterArrival`, `Issue`).
+6. Не видати більше, ніж є на складі (`InvalidOperationException`, `Issue`).
+7. Залишок не переповнює `int` (`InvalidOperationException`, `RegisterArrival`).
+8. Операції (прихід, видача, зміна ціни) лише для статусу `Active` (`InvalidOperationException`).
+9. Допустимі переходи статусів: `Active ↔ Suspended`, будь-який → `Discontinued`; зі `Discontinued` виходу немає (`InvalidOperationException`, `ChangeStatus`).
+10. Статус `FromDto` має бути відомим значенням (`ArgumentException`).
+
+**Warehouse**
+11. Id, назва й розташування не порожні (`ArgumentException`, `Create`, `Relocate`).
+12. Не переносити склад на ту саму адресу (`InvalidOperationException`, `Relocate`).
+
+**WarehousePlacementService**
+13. На складі не більше N різних товарів (`InvalidOperationException`, `Place`).
+14. Один товар зберігається лише на одному складі (`InvalidOperationException`, `Place`).
+
+Чому правила 13–14 винесені в сервіс: жодна сутність не знає про інші екземпляри, а перевірка потребує списку всіх розміщень.
+Якби `Warehouse` тримав посилання на всі товари, виник би зв'язок «усі з усіма» й дублювання стану.
+
+Запуск демонстрації: `dotnet run --project src/Cli` (файл за замовчуванням `data/lab04.json`; можна передати шлях до `.csv` або `.json`).
+
 ## Мультитаргетинг (Multi-targeting)
 Проєкт налаштовано для збірки під кілька цільових фреймворків (TFM)[cite: 2]. Завдяки умовній компіляції (`#if NET10_0_OR_GREATER`), програма виводить різні дані залежно від версії[cite: 2]. 
 Для запуску конкретної версії використовуйте прапорець `-f`:

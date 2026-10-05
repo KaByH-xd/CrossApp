@@ -1,0 +1,17 @@
+{
+  "Products": [
+    { "Id": "L-001", "Name": "Цемент М400 25кг", "Price": 185.50, "Note": "мішок", "Quantity": 100 },
+    { "Id": "L-002", "Name": "Пісок річковий", "Price": 40.00 },
+    { "Id": "L-003", "Name": "Цегла", "Price": 12.00, "Quantity": -5 },
+    { "Id": "L-004", "Name": "Арматура", "Price": 95.00, "Quantity": 20, "Status": "Archived" },
+    { "Id": "l-001", "Name": "Дублікат цементу", "Price": 1.00 },
+    { "Id": "L-006", "Name": "Гіпсокартон", "Price": 150.00, "Quantity": 10, "Status": "Suspended" },
+    { "Id": "L-007", "Name": "Брак у файлі", "Price": -1.00 },
+    { "Id": "L-008", "Name": "", "Price": 5.00 }
+  ],
+  "Warehouses": [
+    { "Id": "WH-A", "Name": "Головний склад", "Location": "Київ" },
+    { "Id": "WH-B", "Name": "Склад без адреси", "Location": "" },
+    { "Id": "wh-a", "Name": "Повтор головного", "Location": "Львів" }
+  ]
+}

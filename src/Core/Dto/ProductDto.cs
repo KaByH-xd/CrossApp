@@ -4,4 +4,6 @@ public record ProductDto(
     string Id,
     string Name,
     decimal Price,
-    string? Note = null);
+    string? Note = null,
+    int Quantity = 0,
+    string Status = "Active");
