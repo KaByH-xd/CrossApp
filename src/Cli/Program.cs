@@ -71,7 +71,7 @@ Console.WriteLine($"{reserve.Id}: {string.Join(", ", placement.GetProductIds(res
 // ───────────── Сценарій 5: імпорт → сутності ─────────────
 Console.WriteLine();
 Console.WriteLine("=== Сценарій 5: імпорт → сутності ===");
-string path = args.Length > 0 ? args[0] : Path.Combine("data", "lab04.json");
+string path = args.Length > 0 ? args[0] : Path.Combine("data", "sample4.json");
 if (!File.Exists(path))
 {
     Console.WriteLine($"Файл не знайдено: {Path.GetFullPath(path)}");
