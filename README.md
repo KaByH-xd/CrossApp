@@ -54,6 +54,28 @@
 
 Запуск демонстрації: `dotnet run --project src/Cli` (файл за замовчуванням `data/lab04.json`; можна передати шлях до `.csv` або `.json`).
 
+## Сервісний шар (лабораторна 5)
+Бізнес-логіка не залежить від способу зберігання: сервіс працює з інтерфейсом, а конкретну реалізацію вибирає точка входу.
+
+* Інтерфейс: **`ICatalogStore`** (`Core/Abstractions`) — `List`, `GetById`, `Add`, `Update`, `Remove`.
+* Реалізації (`Core/Storage`): **`InMemoryCatalogStore`** (словник у пам'яті), **`FileCatalogStore`** (JSON-файл зі списком `ProductDto`), **`CachingCatalogStore`** (декоратор над будь-яким іншим сховищем).
+* Сервіс: **`CatalogService`** (`Core/Services`) — `Add`, `Receive` (прихід), `Issue` (видача), `ChangePrice`, `Remove`, `All`, `Find`, `Search(Func<Product, bool>)`.
+* `Core/SampleData.cs` — 18 демонстраційних товарів для сховища в пам'яті.
+
+Схема залежностей: `Cli (Program.cs) → CatalogService → ICatalogStore → InMemoryCatalogStore | FileCatalogStore (| CachingCatalogStore → будь-яке з них)`.
+Composition root — `src/Cli/Program.cs`: лише там з'являється `new FileCatalogStore(...)` / `new InMemoryCatalogStore(...)`. Контейнер DI не підключено.
+
+Правила розподілу перевірок: інваріанти товару — у `Product`, у сховищі лише унікальність id (`Add`) та наявність запису (`Update`).
+
+### Запуск
+* `dotnet run --project src/Cli` — `InMemoryCatalogStore`, дані зникають після виходу.
+* `dotnet run --project src/Cli -- --file` — `FileCatalogStore`, файл `data/catalog.json` створюється поруч зі збіркою (`<каталог збірки>/data/catalog.json`, повний шлях виводиться в консоль); повторні запуски накопичують записи.
+* `-- --cache` додає декоратор `CachingCatalogStore` (у кінці друкується статистика кешу); `-- --factory` вибирає сховище через `StoreFactory`; `-- --lab4` запускає демонстрацію лабораторної 4.
+
+### Фабрика чи все в Program.cs
+Усе в `Program.cs` — вибір видно в одному місці, нуль додаткових типів; для двох реалізацій цього досить.
+`StoreFactory` прибирає логіку вибору з `Program.cs` і дає одне місце для зміни, якщо прапорців побільшає, але конкретні класи тепер розкидані по двох файлах, а для трьох аргументів це зайвий шар.
+
 ## Мультитаргетинг (Multi-targeting)
 Проєкт налаштовано для збірки під кілька цільових фреймворків (TFM)[cite: 2]. Завдяки умовній компіляції (`#if NET10_0_OR_GREATER`), програма виводить різні дані залежно від версії[cite: 2]. 
 Для запуску конкретної версії використовуйте прапорець `-f`:
