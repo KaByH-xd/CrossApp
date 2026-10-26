@@ -12,7 +12,8 @@ public static class ProductJsonImporter
         public List<WarehouseDto>? Warehouses { get; set; }
     }
 
-    public static MultiImportResult Load(string path)
+    // onSkipped (додаткове завдання 2): звіт про пропущені записи — у руках викликача.
+    public static MultiImportResult Load(string path, Action<string>? onSkipped = null)
     {
         string json = File.ReadAllText(path);
         
@@ -27,15 +28,21 @@ public static class ProductJsonImporter
         var warehouses = new List<WarehouseDto>();
         var errors = new List<string>();
 
+        void Skip(string reason)
+        {
+            errors.Add(reason);
+            onSkipped?.Invoke(reason);
+        }
+
         if (root.Products != null)
         {
             for (int i = 0; i < root.Products.Count; i++)
             {
                 var p = root.Products[i];
                 if (string.IsNullOrWhiteSpace(p.Id) || string.IsNullOrWhiteSpace(p.Name))
-                    errors.Add($"Товар [індекс {i}]: ID або назва порожні");
+                    Skip($"Товар [індекс {i}]: ID або назва порожні");
                 else if (p.Price < 0)
-                    errors.Add($"Товар {p.Id}: ціна не може бути від'ємною");
+                    Skip($"Товар {p.Id}: ціна не може бути від'ємною");
                 else
                     products.Add(p);
             }
@@ -47,7 +54,7 @@ public static class ProductJsonImporter
             {
                 var w = root.Warehouses[i];
                 if (string.IsNullOrWhiteSpace(w.Id) || string.IsNullOrWhiteSpace(w.Name))
-                    errors.Add($"Склад [індекс {i}]: ID або назва порожні");
+                    Skip($"Склад [індекс {i}]: ID або назва порожні");
                 else
                     warehouses.Add(w);
             }
@@ -55,4 +62,4 @@ public static class ProductJsonImporter
 
         return new MultiImportResult(products, warehouses, errors);
     }
-}
+}

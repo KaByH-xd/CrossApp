@@ -8,11 +8,20 @@ public static class ProductCsvImporter
 {
     private const char Separator = ';';
 
-    public static MultiImportResult Load(string path)
+    // onSkipped (додаткове завдання 2): викликач сам вирішує, що робити з описом пропущеного рядка —
+    // надрукувати, записати в журнал чи порахувати. Список Errors у результаті лишається як і раніше.
+    public static MultiImportResult Load(string path, Action<string>? onSkipped = null)
     {
         var products = new List<ProductDto>();
         var warehouses = new List<WarehouseDto>();
         var errors = new List<string>();
+
+        void Skip(string reason)
+        {
+            errors.Add(reason);
+            onSkipped?.Invoke(reason);
+        }
+
         string[] lines = File.ReadAllLines(path);
 
         for (int i = 0; i < lines.Length; i++)
@@ -34,7 +43,7 @@ public static class ProductCsvImporter
                     warehouses.Add(w.Value);
                     break;
                 case ParseFailed failed:
-                    errors.Add($"рядок {number}: {failed.Reason}");
+                    Skip($"рядок {number}: {failed.Reason}");
                     break;
             }
         }
@@ -74,4 +83,4 @@ public static class ProductCsvImporter
     private sealed record ParseProductOk(ProductDto Value) : ParseOutcome;
     private sealed record ParseWarehouseOk(WarehouseDto Value) : ParseOutcome;
     private sealed record ParseFailed(string Reason) : ParseOutcome;
-}
+}

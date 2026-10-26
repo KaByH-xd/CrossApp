@@ -9,13 +9,21 @@ namespace Core.Import;
 /// </summary>
 public static class DomainConverter
 {
-    public static DomainImportResult ToDomain(MultiImportResult source)
+    // onRejected (додаткове завдання 2): той самий прийом, що й в імпортерах, — Action<string> у сигнатурі.
+    public static DomainImportResult ToDomain(MultiImportResult source, Action<string>? onRejected = null)
     {
         ArgumentNullException.ThrowIfNull(source);
 
         var products = new List<Product>();
         var warehouses = new List<Warehouse>();
         var errors = new List<string>();
+
+        void Reject(string reason)
+        {
+            errors.Add(reason);
+            onRejected?.Invoke(reason);
+        }
+
         var productIds = new HashSet<string>();
         var warehouseIds = new HashSet<string>();
 
@@ -26,18 +34,18 @@ public static class DomainConverter
                 Product product = Product.FromDto(dto);
                 if (!productIds.Add(product.Id))
                 {
-                    errors.Add($"Товар {product.Id}: дублікат ідентифікатора");
+                    Reject($"Товар {product.Id}: дублікат ідентифікатора");
                     continue;
                 }
                 products.Add(product);
             }
             catch (ArgumentException ex)
             {
-                errors.Add($"Товар '{dto.Id}': {FirstLine(ex.Message)}");
+                Reject($"Товар '{dto.Id}': {FirstLine(ex.Message)}");
             }
             catch (InvalidOperationException ex)
             {
-                errors.Add($"Товар '{dto.Id}': {FirstLine(ex.Message)}");
+                Reject($"Товар '{dto.Id}': {FirstLine(ex.Message)}");
             }
         }
 
@@ -48,14 +56,14 @@ public static class DomainConverter
                 Warehouse warehouse = Warehouse.FromDto(dto);
                 if (!warehouseIds.Add(warehouse.Id))
                 {
-                    errors.Add($"Склад {warehouse.Id}: дублікат ідентифікатора");
+                    Reject($"Склад {warehouse.Id}: дублікат ідентифікатора");
                     continue;
                 }
                 warehouses.Add(warehouse);
             }
             catch (ArgumentException ex)
             {
-                errors.Add($"Склад '{dto.Id}': {FirstLine(ex.Message)}");
+                Reject($"Склад '{dto.Id}': {FirstLine(ex.Message)}");
             }
         }
 
