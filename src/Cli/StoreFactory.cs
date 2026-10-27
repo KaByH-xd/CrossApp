@@ -1,5 +1,6 @@
 using Core;
 using Core.Abstractions;
+using Core.Domain;
 using Core.Storage;
 
 /// <summary>
@@ -13,7 +14,7 @@ internal static class StoreFactory
     {
         ICatalogStore store = args.Contains("--file")
             ? new FileCatalogStore(dataPath)
-            : new InMemoryCatalogStore(SampleData.Products());
+            : new InMemoryCatalogStore(args.Contains("--empty") ? Array.Empty<Product>() : SampleData.Products());
 
         return args.Contains("--cache") ? new CachingCatalogStore(store) : store;
     }

@@ -6,4 +6,5 @@ public record ProductDto(
     decimal Price,
     string? Note = null,
     int Quantity = 0,
-    string Status = "Active");
+    string Status = "Active",
+    string Unit = "шт");

@@ -30,9 +30,10 @@ public sealed class CatalogService(ICatalogStore store, params INotificationSink
             sink.Notify(args);
     }
 
-    public Product Add(string name, decimal price, int quantity, string? note = null)
+    public Product Add(string name, decimal price, int quantity, string? note = null,
+        string unit = Product.DefaultUnit)
     {
-        Product product = Product.Create(Guid.NewGuid().ToString("N")[..8], name, price, quantity, note);
+        Product product = Product.Create(Guid.NewGuid().ToString("N")[..8], name, price, quantity, note, unit);
         _store.Add(product); // інваріанти вже перевірив Product.Create; сховище перевіряє лише унікальність id
         OnChanged(product, CatalogChangeKind.Added, quantity); // після зміни, не до
         return product;

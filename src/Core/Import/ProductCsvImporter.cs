@@ -63,6 +63,10 @@ public static class ProductCsvImporter
                 => new ParseProductOk(new ProductDto(id, name, p)),
             ["P", var id, var name, var priceStr, var note] when decimal.TryParse(priceStr, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal p) && p >= 0 
                 => new ParseProductOk(new ProductDto(id, name, p, string.IsNullOrWhiteSpace(note) ? null : note)),
+            // Шоста колонка (лабораторна 7) — одиниця виміру; порожня → "шт".
+            ["P", var id, var name, var priceStr, var note, var unit] when decimal.TryParse(priceStr, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal p) && p >= 0
+                => new ParseProductOk(new ProductDto(id, name, p, string.IsNullOrWhiteSpace(note) ? null : note,
+                    Unit: string.IsNullOrWhiteSpace(unit) ? "шт" : unit)),
             ["P", ..] 
                 => new ParseFailed("Некоректний формат або ціна для товару"),
 

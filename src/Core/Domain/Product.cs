@@ -9,19 +9,24 @@ namespace Core.Domain;
 /// </summary>
 public sealed class Product
 {
+    /// <summary>Одиниця виміру за замовчуванням (і для старих даних, де одиниці ще не було).</summary>
+    public const string DefaultUnit = "шт";
+
     private int _quantity;
 
     public string Id { get; }
     public string Name { get; }
     public string? Note { get; }
+    public string Unit { get; }
     public decimal Price { get; private set; }
     public int Quantity => _quantity;
     public ProductStatus Status { get; private set; }
 
-    private Product(string id, string name, decimal price, int quantity, string? note)
+    private Product(string id, string name, decimal price, int quantity, string? note, string unit)
     {
         Id = id;
         Name = name;
+        Unit = unit;
         Price = price;
         _quantity = quantity;
         Note = note;
@@ -29,7 +34,8 @@ public sealed class Product
     }
 
     // Єдиний спосіб створити товар: усі перевірки виконуються ДО створення об'єкта.
-    public static Product Create(string id, string name, decimal price, int quantity = 0, string? note = null)
+    public static Product Create(string id, string name, decimal price, int quantity = 0, string? note = null,
+        string unit = DefaultUnit)
     {
         if (string.IsNullOrWhiteSpace(id))
             throw new ArgumentException("Ідентифікатор товару не може бути порожнім", nameof(id));
@@ -41,13 +47,16 @@ public sealed class Product
         if (quantity < 0)
             throw new ArgumentOutOfRangeException(nameof(quantity), quantity,
                 $"Початковий залишок товару {id.Trim()} не може бути від'ємним");
+        if (string.IsNullOrWhiteSpace(unit))
+            throw new ArgumentException($"Одиниця виміру товару {id.Trim()} не може бути порожньою", nameof(unit));
 
         return new Product(
             id.Trim().ToUpperInvariant(),
             name.Trim(),
             price,
             quantity,
-            string.IsNullOrWhiteSpace(note) ? null : note.Trim());
+            string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
+            unit.Trim());
     }
 
     public void RegisterArrival(int amount)
@@ -116,7 +125,7 @@ public sealed class Product
     }
 
     // Мапінг у формат даних (DTO) і назад — його використає сховище п'ятого тижня.
-    public ProductDto ToDto() => new(Id, Name, Price, Note, Quantity, Status.ToString());
+    public ProductDto ToDto() => new(Id, Name, Price, Note, Quantity, Status.ToString(), Unit);
 
     // Відновлення проходить ТІ САМІ перевірки, що й створення: через Create і ChangeStatus.
     public static Product FromDto(ProductDto dto)
@@ -127,12 +136,14 @@ public sealed class Product
             throw new ArgumentException(
                 $"Товар {dto.Id}: невідомий статус '{dto.Status}'", nameof(dto));
 
-        Product product = Create(dto.Id, dto.Name, dto.Price, dto.Quantity, dto.Note);
+        // Файли, записані до лабораторної 7, одиниці не містять — для них береться DefaultUnit.
+        string unit = string.IsNullOrWhiteSpace(dto.Unit) ? DefaultUnit : dto.Unit;
+        Product product = Create(dto.Id, dto.Name, dto.Price, dto.Quantity, dto.Note, unit);
         if (status != ProductStatus.Active)
             product.ChangeStatus(status);
         return product;
     }
 
     public override string ToString() =>
-        $"{Id} {Name} — {Price.ToString("F2", CultureInfo.InvariantCulture)}, залишок {Quantity} [{Status}]";
+        $"{Id} {Name} — {Price.ToString("F2", CultureInfo.InvariantCulture)}, залишок {Quantity} {Unit} [{Status}]";
 }

@@ -1,9 +1,7 @@
 ﻿using Core;
 using Core.Abstractions;
 using Core.Domain;
-using Core.Dto;
-using Core.Events;
-using Core.Import;
+using Core.Reports;
 using Core.Services;
 using Core.Storage;
 using System.Text;
@@ -13,6 +11,7 @@ Console.OutputEncoding = Encoding.UTF8;
 
 // ═════════════ Composition root: єдине місце з конкретними класами сховищ ═════════════
 bool useFile = args.Contains("--file");
+bool empty = args.Contains("--empty"); // порожнє джерело: перевірка, що звіти не падають
 string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "catalog.json");
 
 ICatalogStore store;
@@ -24,7 +23,7 @@ else
 {
     store = useFile
         ? new FileCatalogStore(dataPath)
-        : new InMemoryCatalogStore(SampleData.Products());
+        : new InMemoryCatalogStore(empty ? Array.Empty<Product>() : SampleData.Products());
     if (args.Contains("--cache"))
         store = new CachingCatalogStore(store); // декоратор обгортає вибране сховище
 }
@@ -32,156 +31,83 @@ else
 var service = new CatalogService(store);
 // ═══════════════════════════════════════════════════════════════════════════════════════
 
-Console.WriteLine($"Сховище: {store.GetType().Name}");
+// Перший аргумент без "--" — назва підкоманди; прапорці --file/--cache/--empty назвою звіту не стають.
+string command = args.FirstOrDefault(a => !a.StartsWith("--")) ?? "report-top";
+IReadOnlyList<Product> items = service.All(); // один знімок для всіх звітів цього запуску
+
+Console.WriteLine($"Сховище: {store.GetType().Name}, записів: {items.Count}");
 if (useFile)
     Console.WriteLine($"Файл даних: {Path.GetFullPath(dataPath)}");
-Console.WriteLine($"Записів на старті: {service.All().Count}");
 
-// ═════════════ Лабораторна 6: підписка на події сервісу (тут, у Cli, а не в Core) ═════════════
-string logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
-Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
-File.AppendAllText(logPath,
-    $"# запуск {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}, сховище {store.GetType().Name}{Environment.NewLine}");
-Console.WriteLine($"Журнал подій: {logPath}");
-
-// Підписник 1 — локальний метод: має стале ім'я, тому його можна і підписати (+=), і відписати (-=).
-void OnCatalogChanged(object? sender, CatalogChangedEventArgs e)
+// У Program.cs лише вибір звіту і вивід; фільтри, групування й агрегати — у Core.Reports.ReportService.
+switch (command)
 {
-    string line = ChangeLine.Format(e);
-    Console.WriteLine(line);
-    try
-    {
-        File.AppendAllText(logPath, line + Environment.NewLine);
-    }
-    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-    {
-        // Збій журналу не повинен ламати бізнес-операцію, що вже відбулася.
-        Console.WriteLine($"  [журнал] не вдалося записати: {ex.Message}");
-    }
+    case "report-top":
+        ReportPrinter.Title("Топ-5 за залишком");
+        ReportPrinter.Print(ReportService.TopByQuantity(items, 5));
+        break;
+    case "report-low":
+        ReportPrinter.Title("Дефіцит: залишок < 10");
+        ReportPrinter.Print(ReportService.LowStock(items, 10));
+        break;
+    case "report-groups":
+        ReportPrinter.Title("Групування за одиницею виміру");
+        ReportPrinter.Print(ReportService.ByUnit(items));
+        break;
+    case "report-sum":
+        ReportPrinter.Title("Підсумки");
+        ReportPrinter.Print(ReportService.Totals(items));
+        break;
+    case "report-value":
+        ReportPrinter.Title("Топ-5 за вартістю залишку (ціна × кількість)");
+        ReportPrinter.Print(ReportService.TopByValue(items, 5));
+        break;
+    case "report-all":
+        ReportPrinter.Title("Топ-5 за залишком");
+        ReportPrinter.Print(ReportService.TopByQuantity(items, 5));
+        ReportPrinter.Title("Дефіцит: залишок < 10");
+        ReportPrinter.Print(ReportService.LowStock(items, 10));
+        ReportPrinter.Title("Групування за одиницею виміру");
+        ReportPrinter.Print(ReportService.ByUnit(items));
+        ReportPrinter.Title("Підсумки");
+        ReportPrinter.Print(ReportService.Totals(items));
+        ReportPrinter.Title("Топ-5 за вартістю залишку (ціна × кількість)");
+        ReportPrinter.Print(ReportService.TopByValue(items, 5));
+        break;
+    case "report-groups-query":
+        IReadOnlyList<GroupSummary> methodSyntax = ReportService.ByUnit(items);
+        IReadOnlyList<GroupSummary> querySyntax = ReportService.ByUnitQuerySyntax(items);
+        ReportPrinter.Title("Групування: синтаксис методів (ланцюжок викликів)");
+        ReportPrinter.Print(methodSyntax);
+        ReportPrinter.Title("Групування: синтаксис запитів (from … group … into …)");
+        ReportPrinter.Print(querySyntax);
+        // record порівнюються за значенням, тож SequenceEqual перевіряє вміст, а не посилання
+        Console.WriteLine($"  Результати однакові: {methodSyntax.SequenceEqual(querySyntax)}");
+        break;
+    case "report-deferred":
+        ReportPrinter.Title("Відкладене виконання LINQ");
+        DeferredExecutionDemo.Run(service);
+        break;
+    case "report-moves":
+        ReportPrinter.Title("Рух товарів (з подій Changed)");
+        MovementsDemo.Run(service);
+        break;
+    case "report-bench":
+        ReportPrinter.Title("Вимірювання Stopwatch на 100 000 записів");
+        BenchmarkDemo.Run();
+        break;
+    case "lab6":
+        EventsDemo.Run(service, store, args);
+        break;
+    default:
+        Console.WriteLine($"Невідома команда «{command}». Доступні:");
+        Console.WriteLine("  report-top | report-low | report-groups | report-sum | report-value | report-all");
+        Console.WriteLine("  report-groups-query | report-deferred | report-moves | report-bench | lab6 [файл]");
+        Console.WriteLine("  прапорці: --file | --cache | --factory | --empty");
+        return 1;
 }
 
-service.Changed += OnCatalogChanged;
-
-// Підписник 2 — лямбда із замиканням: захоплює локальну змінну changes і збільшує саме її.
-int changes = 0;
-service.Changed += (_, _) => changes++;
-
-// ───────────── Сценарій 1: успішні операції — рівно одна подія на кожну ─────────────
-Console.WriteLine();
-Console.WriteLine("=== Сценарій 1: успішні операції (один рядок події на операцію) ===");
-Product created = service.Add("Кабель UTP cat6", 28.50m, 50, "бухта");
-service.Receive(created.Id, 25);
-service.Issue(created.Id, 10);
-service.ChangePrice(created.Id, 31.00m);
-Product adapter = service.Add("Перехідник USB-C", 9.90m, 0); // нульовий залишок — його можна видалити
-service.Remove(adapter.Id);
-Console.WriteLine($"Подій отримано: {changes}");
-
-// Порядок обробників: третій, тимчасовий підписник бачить, що перші два вже відпрацювали.
-// Лямбду збережено у змінній — лише так її можна потім зняти через -=.
-EventHandler<CatalogChangedEventArgs> orderProbe = (sender, e) =>
-    Console.WriteLine($"  ↳ 3-й обробник: рядок події вже надруковано (1-й), лічильник уже = {changes} (2-й); " +
-                      $"sender — {sender?.GetType().Name}");
-service.Changed += orderProbe;
-service.Receive(created.Id, 5);
-service.Changed -= orderProbe;
-
-// ───────────── Сценарій 2: відмови — виняток є, рядка події немає ─────────────
-Console.WriteLine();
-Console.WriteLine("=== Сценарій 2: відмови (обробники підписані, але подій бути не повинно) ===");
-int changesBeforeFailures = changes;
-ConsoleScenario.TryDo("прихід з від'ємною кількістю", () => service.Receive(created.Id, -5));
-ConsoleScenario.TryDo("прихід неіснуючого id", () => service.Receive("NO-SUCH-ID", 5));
-ConsoleScenario.TryDo("видача більша за залишок", () => service.Issue(created.Id, 1000));
-ConsoleScenario.TryDo("нульова кількість приходу", () => service.Receive(created.Id, 0));
-ConsoleScenario.TryDo("від'ємна ціна", () => service.ChangePrice(created.Id, -1m));
-ConsoleScenario.TryDo("порожня назва нового товару", () => service.Add(" ", 1m, 1));
-ConsoleScenario.TryDo("дубль id у сховищі", () => store.Add(Product.Create(created.Id, "Копія", 1m)));
-ConsoleScenario.TryDo("видалення товару із залишком", () => service.Remove(created.Id));
-ConsoleScenario.TryDo("сервіс без сховища", () => new CatalogService(null!));
-Console.WriteLine($"Подій під час відмов: {changes - changesBeforeFailures} (очікується 0)");
-Console.WriteLine($"Стан після усіх відмов: {service.Find(created.Id)}");
-
-// ───────────── Сценарій 3: відписка — операція виконується, повідомлення немає ─────────────
-Console.WriteLine();
-Console.WriteLine("=== Сценарій 3: відписка ===");
-Console.WriteLine($"Подій отримано: {changes}");
-service.Changed -= OnCatalogChanged;
-service.Receive(created.Id, 5); // тиха операція: рядка події немає ні в консолі, ні в app.log
-Console.WriteLine($"Після відписки дані змінились: {service.Find(created.Id)}");
-Console.WriteLine($"Подій отримано: {changes}"); // +1 лише від лямбди-лічильника
-
-// Нова лямбда з тим самим текстом — інший екземпляр делегата, тому ця відписка нічого не знімає.
-service.Changed -= (_, _) => changes++;
-service.Issue(created.Id, 5);
-Console.WriteLine($"Після «-= нова лямбда»: подій {changes} — лічильник досі підписаний");
-
-// ───────────── Сценарій 4: Func замість події — потрібне значення у відповідь ─────────────
-Console.WriteLine();
-Console.WriteLine("=== Сценарій 4: FindAll(p => p.Quantity < 10) ===");
-IReadOnlyList<Product> lowStock = service.FindAll(p => p.Quantity < 10);
-Console.WriteLine($"Товарів із залишком < 10: {lowStock.Count}");
-foreach (Product p in lowStock)
-    Console.WriteLine($"  {p}");
-Console.WriteLine($"Усього записів: {service.All().Count}; ціна > 100: {service.FindAll(p => p.Price > 100m).Count} шт.");
-
-// ───────────── Додаткове 1: INotificationSink через конструктор (ручний DI) ─────────────
-Console.WriteLine();
-Console.WriteLine("=== Додаткове 1: одержувачі INotificationSink, передані в конструктор ===");
-string sinkLogPath = Path.Combine(AppContext.BaseDirectory, "logs", "sink.log");
-var notifyingService = new CatalogService(store, new ConsoleSink(), new FileSink(sinkLogPath));
-int changesBeforeSinks = changes;
-notifyingService.Receive(created.Id, 3);
-notifyingService.Issue(created.Id, 2);
-Console.WriteLine($"FileSink пише у: {sinkLogPath}");
-Console.WriteLine($"Подій на service.Changed за цей час: {changes - changesBeforeSinks} " +
-                  "(інший екземпляр сервісу — його одержувачі задані конструктором, а не через +=)");
-
-// ───────────── Додаткове 2: Action<string> як параметр методу імпорту ─────────────
-Console.WriteLine();
-Console.WriteLine("=== Додаткове 2: звіт про пропущені рядки імпорту через Action<string> ===");
-string? importPath = args.FirstOrDefault(a =>
-        a.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) ||
-        a.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-    ?? FindUp(Path.Combine("data", "sample.csv"));
-
-if (importPath is null || !File.Exists(importPath))
-{
-    Console.WriteLine($"Файл імпорту не знайдено ({importPath ?? "data/sample.csv"}) — розділ пропущено.");
-}
-else
-{
-    int skipped = 0;
-    Action<string> reportSkipped = reason =>
-    {
-        skipped++; // замикання: лічильник живе в Cli, імпортер про нього не знає
-        Console.WriteLine($"  пропущено: {reason}");
-    };
-
-    MultiImportResult raw = importPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
-        ? ProductJsonImporter.Load(importPath, reportSkipped)
-        : ProductCsvImporter.Load(importPath, reportSkipped);
-    DomainImportResult imported = DomainConverter.ToDomain(raw, reportSkipped);
-    Console.WriteLine($"Імпорт {Path.GetFileName(importPath)}: товарів {imported.Products.Count}, " +
-                      $"складів {imported.Warehouses.Count}, пропущено {skipped}");
-}
-
-if (store is CachingCatalogStore cache)
+if (store is CachingCatalogStore cache && command != "lab6")
     Console.WriteLine($"Кеш: влучань {cache.Hits}, промахів {cache.Misses}");
 
 return 0;
-
-// Шукає відносний шлях у поточному каталозі та вище від каталогу збірки (запуск і з кореня, і з IDE).
-static string? FindUp(string relativePath)
-{
-    if (File.Exists(relativePath))
-        return Path.GetFullPath(relativePath);
-
-    for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-    {
-        string candidate = Path.Combine(dir.FullName, relativePath);
-        if (File.Exists(candidate))
-            return candidate;
-    }
-    return null;
-}
